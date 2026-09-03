@@ -5,9 +5,10 @@ import { providerName } from '../utils/provider'
 interface RentalLinkProps {
   provider: ScooterProvider
   uri: string
+  iconSize?: number
 }
 
-export function RentalLink({ provider, uri }: RentalLinkProps) {
+export function RentalLink({ provider, uri, iconSize = 14 }: RentalLinkProps) {
   const opensWebPage = /^https?:\/\//i.test(uri)
 
   return (
@@ -18,7 +19,7 @@ export function RentalLink({ provider, uri }: RentalLinkProps) {
       rel={opensWebPage ? 'noreferrer' : undefined}
     >
       Open in {providerName(provider)}
-      <ExternalLink size={14} aria-hidden="true" />
+      <ExternalLink size={iconSize} aria-hidden="true" />
     </a>
   )
 }

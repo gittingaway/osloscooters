@@ -63,3 +63,10 @@ export function withNearbyDistances(
 export function formatDistance(distanceMeters: number): string {
   return `${Math.round(distanceMeters)} m`
 }
+
+export function formatRange(rangeMeters: number): string {
+  const kilometres = rangeMeters / 1000
+  const formatted =
+    kilometres >= 10 ? Math.round(kilometres) : kilometres.toFixed(1)
+  return `~${formatted} km range`
+}
