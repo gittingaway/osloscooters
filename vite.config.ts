@@ -2,8 +2,14 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vitest/config'
 
+// Set at build time in CI for GitHub Pages, which serves this project
+// under /osloscooters/ rather than the domain root. Every other host
+// (local dev, Cloudflare Pages) serves from the root and needs no override.
+const basePath = process.env.VITE_BASE_PATH ?? '/'
+
 // https://vite.dev/config/
 export default defineConfig({
+  base: basePath,
   plugins: [
     react(),
     VitePWA({
@@ -14,8 +20,8 @@ export default defineConfig({
         short_name: 'Oslo Scooters',
         description: 'Nearby Voi, Bolt, and Ryde scooters in Oslo, in one place.',
         lang: 'en',
-        start_url: '/',
-        scope: '/',
+        start_url: basePath,
+        scope: basePath,
         display: 'standalone',
         background_color: '#eef1ef',
         theme_color: '#f3f5ef',
