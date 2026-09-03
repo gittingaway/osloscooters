@@ -104,6 +104,33 @@ function ClusteredScooterMarkers({
   return null
 }
 
+function MapSizeSync() {
+  const map = useMap()
+
+  // Mobile browsers finalize the dynamic viewport height (dvh) after the
+  // toolbar/chrome settles, which can leave Leaflet sized against a stale
+  // container measurement and push tiles wider than the screen. Re-check
+  // once after mount and on resize/orientation change.
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => map.invalidateSize())
+
+    function handleResize() {
+      map.invalidateSize()
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+
+    return () => {
+      cancelAnimationFrame(frameId)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [map])
+
+  return null
+}
+
 function ViewportController({
   location,
 }: Pick<ScooterMapProps, 'location'>) {
@@ -167,6 +194,7 @@ export function ScooterMap({
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
       <ZoomControl position="bottomleft" />
+      <MapSizeSync />
       <ViewportController location={location} />
       <SelectedScooterFocus selectedScooter={selectedScooter} />
       <Marker position={[location.latitude, location.longitude]} icon={userIcon}>
