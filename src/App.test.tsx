@@ -149,7 +149,9 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('90 m away')).toBeInTheDocument()
-    expect(within(dialog).getByText('72% battery')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('72% battery · ~13 km range'),
+    ).toBeInTheDocument()
     expect(within(dialog).getByRole('link', { name: 'Open in Bolt' })).toBeInTheDocument()
   })
 

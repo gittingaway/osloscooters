@@ -3,6 +3,7 @@ import type { Scooter } from '../types/scooter'
 import {
   distanceInMeters,
   formatDistance,
+  formatRange,
   withNearbyDistances,
 } from './distance'
 
@@ -41,5 +42,13 @@ describe('distance utilities', () => {
 
   it('formats rounded metre distances', () => {
     expect(formatDistance(89.6)).toBe('90 m')
+  })
+
+  it('formats short ranges to one decimal place', () => {
+    expect(formatRange(3400)).toBe('~3.4 km range')
+  })
+
+  it('formats long ranges as a rounded whole number', () => {
+    expect(formatRange(47_600)).toBe('~48 km range')
   })
 })

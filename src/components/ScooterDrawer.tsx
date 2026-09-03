@@ -1,10 +1,22 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { type UIEvent, useEffect, useRef } from 'react'
+import { type PointerEvent, type UIEvent, useEffect, useRef } from 'react'
 import type { Scooter } from '../types/scooter'
-import { formatDistance } from '../utils/distance'
+import { formatDistance, formatRange } from '../utils/distance'
 import { providerInitial, providerName } from '../utils/provider'
 import { rentalUriForScooter } from '../utils/rental'
 import { RentalLink } from './RentalLink'
+
+function batteryLabel(scooter: Scooter): string | undefined {
+  return scooter.batteryPercent === undefined
+    ? undefined
+    : `${scooter.batteryPercent}% battery`
+}
+
+function rangeLabel(scooter: Scooter): string | undefined {
+  return scooter.rangeMeters === undefined
+    ? undefined
+    : formatRange(scooter.rangeMeters)
+}
 
 interface ScooterDrawerProps {
   scooters: Scooter[]
@@ -13,6 +25,8 @@ interface ScooterDrawerProps {
   onClose: () => void
 }
 
+const DRAG_CLOSE_THRESHOLD_PX = 90
+
 export function ScooterDrawer({
   scooters,
   selectedIndex,
@@ -20,9 +34,12 @@ export function ScooterDrawer({
   onClose,
 }: ScooterDrawerProps) {
   const trackRef = useRef<HTMLDivElement>(null)
+  const drawerRef = useRef<HTMLElement>(null)
   const scrollEndTimer = useRef<number | undefined>(undefined)
   const selectedIndexRef = useRef(selectedIndex)
   const isOpen = selectedIndex >= 0 && selectedIndex < scooters.length
+  const dragStartY = useRef<number | null>(null)
+  const dragOffsetRef = useRef(0)
 
   useEffect(() => {
     selectedIndexRef.current = selectedIndex
@@ -69,6 +86,46 @@ export function ScooterDrawer({
     return null
   }
 
+  function setDrawerOffset(offsetPx: number, withTransition: boolean) {
+    const node = drawerRef.current
+    if (!node) {
+      return
+    }
+
+    node.style.transition = withTransition ? '' : 'none'
+    node.style.transform =
+      offsetPx > 0 ? `translate(50%, ${offsetPx}px)` : ''
+  }
+
+  function handleDragStart(event: PointerEvent<HTMLElement>) {
+    dragStartY.current = event.clientY
+    dragOffsetRef.current = 0
+  }
+
+  function handleDragMove(event: PointerEvent<HTMLElement>) {
+    if (dragStartY.current === null) {
+      return
+    }
+
+    const offset = Math.max(0, event.clientY - dragStartY.current)
+    dragOffsetRef.current = offset
+    setDrawerOffset(offset, false)
+  }
+
+  function handleDragEnd() {
+    if (dragStartY.current === null) {
+      return
+    }
+
+    dragStartY.current = null
+    if (dragOffsetRef.current > DRAG_CLOSE_THRESHOLD_PX) {
+      onClose()
+    } else {
+      setDrawerOffset(0, true)
+    }
+    dragOffsetRef.current = 0
+  }
+
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const track = event.currentTarget
     window.clearTimeout(scrollEndTimer.current)
@@ -92,11 +149,20 @@ export function ScooterDrawer({
   return (
     <>
       <section
+        ref={drawerRef}
         className="scooter-drawer"
         role="dialog"
         aria-labelledby="scooter-drawer-title"
       >
-        <span className="scooter-drawer__handle" aria-hidden="true" />
+        <div
+          className="scooter-drawer__grip"
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+        >
+          <span className="scooter-drawer__handle" aria-hidden="true" />
+        </div>
         <button
           className="scooter-drawer__close"
           type="button"
@@ -114,6 +180,8 @@ export function ScooterDrawer({
         >
           {scooters.map((scooter, index) => {
             const rentalUri = rentalUriForScooter(scooter)
+            const battery = batteryLabel(scooter)
+            const range = rangeLabel(scooter)
             return (
               <article
                 className="scooter-drawer__slide"
@@ -142,15 +210,19 @@ export function ScooterDrawer({
                         : `${formatDistance(scooter.distanceMeters)} away`}
                     </strong>
                     <span className="scooter-drawer__battery">
-                      {scooter.batteryPercent === undefined
-                        ? 'Battery unavailable'
-                        : `${scooter.batteryPercent}% battery`}
+                      {battery && range
+                        ? `${battery} · ${range}`
+                        : battery ?? range ?? 'Battery unavailable'}
                     </span>
                   </div>
                 </div>
                 <div className="scooter-drawer__action">
                   {rentalUri ? (
-                    <RentalLink provider={scooter.provider} uri={rentalUri} />
+                    <RentalLink
+                      provider={scooter.provider}
+                      uri={rentalUri}
+                      iconSize={20}
+                    />
                   ) : (
                     <span>Provider link unavailable</span>
                   )}

@@ -29,6 +29,18 @@ const scooters: Scooter[] = [
   },
 ]
 
+const rydeScooter: Scooter = {
+  id: 'ryde-1',
+  provider: 'ryde',
+  latitude: 59.922,
+  longitude: 10.742,
+  distanceMeters: 120,
+  rangeMeters: 47_600,
+  isReserved: false,
+  isDisabled: false,
+  rentalUris: { web: 'https://ryde.example/ryde-1' },
+}
+
 function DrawerHarness() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   return (
@@ -53,6 +65,73 @@ describe('ScooterDrawer', () => {
       'href',
       'https://voi.example/voi-1',
     )
+  })
+
+  it('shows range instead of battery when only range is available', () => {
+    render(
+      <ScooterDrawer
+        scooters={[rydeScooter]}
+        selectedIndex={0}
+        onIndexChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('~48 km range')).toBeInTheDocument()
+    expect(screen.queryByText('Battery unavailable')).not.toBeInTheDocument()
+  })
+
+  it('shows both battery and range when both are available', () => {
+    render(
+      <ScooterDrawer
+        scooters={[{ ...scooters[0], rangeMeters: 8_500 }]}
+        selectedIndex={0}
+        onIndexChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('64% battery · ~8.5 km range')).toBeInTheDocument()
+  })
+
+  it('closes when the grip is dragged down past the threshold', () => {
+    const onClose = vi.fn()
+    render(
+      <ScooterDrawer
+        scooters={scooters}
+        selectedIndex={0}
+        onIndexChange={vi.fn()}
+        onClose={onClose}
+      />,
+    )
+    const dialog = screen.getByRole('dialog')
+    const grip = dialog.querySelector('.scooter-drawer__grip') as HTMLElement
+
+    fireEvent.pointerDown(grip, { clientY: 0 })
+    fireEvent.pointerMove(grip, { clientY: 120 })
+    fireEvent.pointerUp(grip, { clientY: 120 })
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('snaps back without closing on a short grip drag', () => {
+    const onClose = vi.fn()
+    render(
+      <ScooterDrawer
+        scooters={scooters}
+        selectedIndex={0}
+        onIndexChange={vi.fn()}
+        onClose={onClose}
+      />,
+    )
+    const dialog = screen.getByRole('dialog')
+    const grip = dialog.querySelector('.scooter-drawer__grip') as HTMLElement
+
+    fireEvent.pointerDown(grip, { clientY: 0 })
+    fireEvent.pointerMove(grip, { clientY: 30 })
+    fireEvent.pointerUp(grip, { clientY: 30 })
+
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('moves to the next scooter using the accessible control', async () => {
