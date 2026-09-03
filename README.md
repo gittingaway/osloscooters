@@ -87,6 +87,15 @@ The app is a static Vite build and can be hosted on Cloudflare Pages using:
 
 HTTPS is required for browser geolocation outside `localhost`, and for the service worker to register.
 
+### GitHub Pages
+
+`.github/workflows/deploy-pages.yml` builds and deploys the app to GitHub Pages automatically on every push to `main`. To enable it on a fork or new repository:
+
+1. In the repository's **Settings > Pages**, set **Source** to **GitHub Actions**.
+2. Push to `main`, or run the workflow manually from the **Actions** tab.
+
+GitHub Pages serves project sites under a subpath (`https://<user>.github.io/<repo>/`), so the workflow builds with `VITE_BASE_PATH=/<repo>/` to keep every asset path, the manifest's `start_url`/`scope`, and the service worker aligned with that subpath. If the repository is renamed, update `VITE_BASE_PATH` in the workflow to match. A custom domain does not need this override — set `VITE_BASE_PATH` back to `/` (or remove it) once a `CNAME` is configured.
+
 ## Privacy
 
 Location stays in browser memory and is only used to calculate local distances. The app does not persist coordinates, keep location history, use analytics, or require an account. `VITE_ENTUR_CLIENT_NAME` is a public identifier compiled into the client bundle, not a secret.
