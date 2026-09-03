@@ -1,0 +1,48 @@
+:root {
+  font-family: Avenir Next, Avenir, Futura, sans-serif;
+  color: #151a17;
+  background: #eef1ef;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #151a17;
+  --muted: #68716c;
+  --surface: #ffffff;
+  --soft: #f2f5f3;
+  --line: #e0e5e2;
+  --voi: #ef5848;
+  --bolt: #23875e;
+  --ryde: #3154c7;
+  --blue: #2968c8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #eef1ef;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #eef1ef;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(35, 135, 94, 0.28);
+  outline-offset: 2px;
+}
+
+#root {
+  min-height: 100vh;
+}

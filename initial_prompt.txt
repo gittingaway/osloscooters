@@ -1,0 +1,916 @@
+# Scooter Availability — Development Brief
+
+## Goal
+
+Build a very small mobile-first web app for personal use that shows available rental e-scooters from **Voi and Bolt in Oslo** in one place.
+
+The main use case is checking scooter availability before leaving for work.
+
+Instead of opening Voi and Bolt separately, I want to open one app and immediately answer:
+
+**“What scooters are available near me right now?”**
+
+This should remain a simple personal utility rather than becoming an overengineered mobility platform.
+
+---
+
+# Primary user flow
+
+When opening the app:
+
+1. Get the user's current location.
+2. Fetch currently available scooters from:
+
+   * Voi
+   * Bolt
+3. Merge them into one common vehicle model.
+4. Calculate straight-line distance between the user and each scooter.
+5. Filter to nearby scooters.
+6. Sort scooters by distance.
+7. Display:
+
+   * nearest scooters as a list
+   * scooters on a map
+8. Allow manual refresh.
+9. Automatically refresh periodically while the app is open.
+
+The user should be able to understand the current situation within a few seconds.
+
+---
+
+# Technology
+
+Use:
+
+* React
+* TypeScript
+* Vite
+* Leaflet or MapLibre for the map
+* Browser Geolocation API
+* Entur GBFS API
+* Minimal CSS / simple component structure
+
+The app should be suitable for installation as a PWA later, but PWA functionality does not need to dominate the initial implementation.
+
+Do not introduce unnecessary infrastructure.
+
+Avoid:
+
+* authentication
+* user accounts
+* databases
+* persistent backend state
+* complex state management libraries
+* microservices
+* unnecessary abstractions
+
+Use normal React state/hooks unless there is a strong reason not to.
+
+---
+
+# Data source
+
+Use Entur's GBFS 3.0 shared mobility API.
+
+Oslo systems:
+
+```text
+voioslo
+boltoslo
+```
+
+Main endpoints:
+
+```text
+https://api.entur.io/mobility/v2/gbfs/v3/voioslo/vehicle_status
+```
+
+```text
+https://api.entur.io/mobility/v2/gbfs/v3/boltoslo/vehicle_status
+```
+
+Also inspect each system's GBFS discovery endpoint rather than unnecessarily hardcoding every possible feed:
+
+```text
+https://api.entur.io/mobility/v2/gbfs/v3/voioslo/gbfs
+```
+
+```text
+https://api.entur.io/mobility/v2/gbfs/v3/boltoslo/gbfs
+```
+
+Requests to Entur should identify the client using:
+
+```http
+ET-Client-Name: personal-scooter-map
+```
+
+Use a more appropriate identifier if needed.
+
+---
+
+# Architecture
+
+Keep the architecture extremely small.
+
+Suggested structure:
+
+```text
+src/
+  components/
+    Map.tsx
+    ScooterList.tsx
+    ScooterCard.tsx
+    StatusBar.tsx
+
+  services/
+    entur.ts
+
+  hooks/
+    useLocation.ts
+    useScooters.ts
+
+  utils/
+    distance.ts
+
+  types/
+    scooter.ts
+
+  App.tsx
+  main.tsx
+```
+
+Do not create abstractions unless they simplify the code.
+
+---
+
+# Common scooter model
+
+Normalize Voi and Bolt data into one internal representation.
+
+For example:
+
+```ts
+export type ScooterProvider = "voi" | "bolt";
+
+export interface Scooter {
+  id: string;
+  provider: ScooterProvider;
+
+  latitude: number;
+  longitude: number;
+
+  distanceMeters?: number;
+
+  rangeMeters?: number;
+  batteryPercent?: number;
+
+  isReserved: boolean;
+  isDisabled: boolean;
+
+  lastReported?: string | number;
+
+  vehicleTypeId?: string;
+
+  rentalUri?: string;
+}
+```
+
+Do not expose GBFS-specific structures throughout the application.
+
+The Entur service should translate external GBFS responses into this model.
+
+---
+
+# Vehicle filtering
+
+Only display scooters that appear usable.
+
+At minimum exclude:
+
+```text
+is_reserved = true
+```
+
+and:
+
+```text
+is_disabled = true
+```
+
+Ignore malformed records without coordinates.
+
+We may add additional filtering later if the feeds expose other availability information.
+
+---
+
+# User location
+
+Use the browser Geolocation API.
+
+On app startup:
+
+```ts
+navigator.geolocation.getCurrentPosition(...)
+```
+
+Request reasonably accurate location.
+
+Handle these states properly:
+
+* loading location
+* permission denied
+* unavailable location
+* successful location
+
+If location permission is unavailable, eventually allow the user to use a saved location such as Home instead.
+
+For the MVP, a useful error message is enough.
+
+---
+
+# Distance
+
+Calculate straight-line distance using latitude/longitude.
+
+Use the Haversine formula.
+
+The application does NOT initially need walking-route distance.
+
+Example:
+
+```text
+72 m
+140 m
+310 m
+```
+
+Sort scooters ascending by this calculated distance.
+
+---
+
+# Default radius
+
+Initially show scooters within approximately:
+
+```text
+500 metres
+```
+
+This should be easy to change.
+
+Potential later options:
+
+```text
+250 m
+500 m
+1 km
+```
+
+Do not build an elaborate filtering system yet.
+
+---
+
+# Main screen
+
+The app should be extremely fast to understand.
+
+Mobile-first layout.
+
+Conceptually:
+
+```text
+Scooters near you
+
+7 available within 500 m
+
+Bolt  90 m
+Voi   130 m
+Bolt  180 m
+Voi   220 m
+
+-----------------
+
+        MAP
+
+  B        V
+
+       YOU
+
+       B
+
+-----------------
+
+Updated 12 sec ago
+
+Refresh
+```
+
+The actual UI should be cleaner than this representation.
+
+---
+
+# Summary
+
+At the top show something similar to:
+
+```text
+7 scooters nearby
+3 Voi · 4 Bolt
+```
+
+Potentially also show:
+
+```text
+Closest: Bolt · 90 m
+```
+
+This is useful because sometimes I only need to know whether getting a scooter is realistic.
+
+---
+
+# Scooter list
+
+Each scooter row/card should show approximately:
+
+```text
+Bolt
+90 m away
+~13 km range
+```
+
+or:
+
+```text
+Voi
+160 m away
+```
+
+Only show range/battery information when actually provided by the feed.
+
+Do not display empty placeholders like:
+
+```text
+Battery: N/A
+```
+
+Simply omit unavailable information.
+
+Provider should be visually obvious.
+
+---
+
+# Map
+
+Display:
+
+* current user location
+* Voi scooters
+* Bolt scooters
+
+The map should initially center around the user's location.
+
+Fit the viewport around the nearby scooters without zooming excessively far out.
+
+Use visually distinct markers for:
+
+* user
+* Voi
+* Bolt
+
+Clicking/tapping a scooter should display basic information:
+
+```text
+Bolt
+140 m away
+~12 km remaining
+```
+
+Keep map popups simple.
+
+---
+
+# Provider filtering
+
+Have a very lightweight control:
+
+```text
+All | Voi | Bolt
+```
+
+Default:
+
+```text
+All
+```
+
+This filters both the map and list.
+
+No complicated filter UI is necessary.
+
+---
+
+# Refresh behavior
+
+Fetch availability:
+
+1. when the application opens
+2. when the user presses Refresh
+3. periodically while the page is active
+
+Start with approximately:
+
+```text
+60 seconds
+```
+
+Do not poll unnecessarily when the page is hidden.
+
+Use the Page Visibility API if convenient.
+
+When returning to the app after it has been inactive for a while, refresh immediately.
+
+Display:
+
+```text
+Updated 14 seconds ago
+```
+
+or similar.
+
+---
+
+# Fetch behavior
+
+Fetch Voi and Bolt concurrently.
+
+For example:
+
+```ts
+const [voiResult, boltResult] = await Promise.allSettled([
+  fetchVoiScooters(),
+  fetchBoltScooters(),
+]);
+```
+
+Use `Promise.allSettled`, not `Promise.all`.
+
+One provider being unavailable should NOT break the whole application.
+
+Example:
+
+```text
+Voi unavailable
+
+Showing 6 Bolt scooters
+```
+
+The application should degrade gracefully.
+
+---
+
+# Entur service
+
+Create something approximately like:
+
+```ts
+async function fetchProviderVehicles(
+  system: "voioslo" | "boltoslo"
+): Promise<Scooter[]>
+```
+
+Then expose:
+
+```ts
+export async function fetchScooters(): Promise<Scooter[]>
+```
+
+This function:
+
+1. fetches providers concurrently
+2. normalizes responses
+3. removes unavailable vehicles
+4. merges the results
+5. returns common Scooter objects
+
+Keep API-specific implementation contained inside `services/entur.ts`.
+
+---
+
+# CORS
+
+First attempt to call Entur directly from the browser.
+
+If Entur does not allow the required browser request/CORS configuration, introduce the smallest possible server-side proxy.
+
+Good options:
+
+* Vercel serverless function
+* Cloudflare Worker
+* Netlify function
+
+The proxy should do almost nothing besides:
+
+```text
+browser
+   ↓
+our endpoint
+   ↓
+Entur
+```
+
+Do not introduce a full backend.
+
+If we use a proxy, the browser can call something like:
+
+```text
+/api/scooters
+```
+
+and the server function can fetch both Entur feeds.
+
+---
+
+# Loading states
+
+Avoid a blank map while loading.
+
+Example:
+
+```text
+Finding your location…
+```
+
+then:
+
+```text
+Finding nearby scooters…
+```
+
+Prefer a simple clean loading state over elaborate skeleton components.
+
+---
+
+# Error handling
+
+Handle independently:
+
+### Location error
+
+Example:
+
+```text
+Location access is required to find nearby scooters.
+```
+
+Provide:
+
+```text
+Try again
+```
+
+### Entur/API error
+
+If both providers fail:
+
+```text
+Unable to load scooters right now.
+```
+
+Provide:
+
+```text
+Try again
+```
+
+If only one fails, still show the working provider.
+
+---
+
+# Range / battery
+
+GBFS may expose:
+
+```text
+current_range_meters
+```
+
+and potentially battery/fuel percentage.
+
+Treat this information as optional.
+
+Prefer displaying remaining range when available:
+
+```text
+~12 km range
+```
+
+Battery percentage can be supported if reliably returned.
+
+Do not make battery information a requirement for displaying a scooter.
+
+---
+
+# Rental links
+
+GBFS may provide `rental_uris`.
+
+If a vehicle has an appropriate rental URI, potentially show:
+
+```text
+Open in Bolt
+```
+
+or:
+
+```text
+Open in Voi
+```
+
+But this is optional.
+
+Do not make deep linking a dependency for the first version.
+
+If Entur/Voi/Bolt does not provide usable deep links, simply leave this feature out.
+
+---
+
+# Saved Home and Work locations
+
+This is a logical second iteration because the app exists specifically for commuting.
+
+Eventually support two saved locations:
+
+```text
+Home
+Work
+```
+
+Persist them locally using:
+
+```text
+localStorage
+```
+
+No account or database.
+
+Possible control:
+
+```text
+Current | Home | Work
+```
+
+This allows checking scooter availability around home before leaving work, or around work before leaving home.
+
+For example:
+
+```text
+HOME
+
+9 scooters within 500 m
+Closest: Bolt · 75 m
+```
+
+This feature can come after current-location support works properly.
+
+---
+
+# Potential commute-focused UX
+
+The eventual app could open directly to something like:
+
+```text
+Good morning
+
+8 scooters near Home
+
+Closest
+Bolt · 85 m
+
+Voi
+3 available
+
+Bolt
+5 available
+```
+
+with the map underneath.
+
+The purpose is not exploring scooters around an entire city.
+
+The purpose is:
+
+**I am about to leave. Is there a scooter nearby, and where is the closest one?**
+
+Optimize for that question.
+
+---
+
+# PWA
+
+Once the basic app works, make it installable as a Progressive Web App.
+
+Requirements:
+
+* manifest
+* app icon
+* standalone display mode
+* mobile viewport correctly configured
+* basic service worker if useful
+
+The app should be installable onto the phone's home screen and open without browser chrome where supported.
+
+Do not prioritize offline functionality because scooter availability inherently requires an internet connection.
+
+---
+
+# Performance
+
+The app should feel effectively instant.
+
+Avoid:
+
+* excessive map rerenders
+* processing data repeatedly
+* unnecessary dependencies
+* refetching feeds individually from multiple components
+
+Fetch once, normalize once, derive filtered/sorted state locally.
+
+---
+
+# Privacy
+
+Location should stay entirely on the device unless technically necessary.
+
+Do not store or transmit location history.
+
+There is no analytics requirement.
+
+There is no user account.
+
+---
+
+# Code quality
+
+Keep the implementation:
+
+* small
+* readable
+* strongly typed
+* componentized where useful
+* easy for one developer to understand
+* easy to change later
+
+Avoid premature abstraction.
+
+Prefer explicit code over generalized frameworks.
+
+For example, two providers do not require a complex provider/plugin architecture.
+
+A simple configuration such as:
+
+```ts
+const providers = [
+  {
+    id: "voi",
+    system: "voioslo",
+    name: "Voi",
+  },
+  {
+    id: "bolt",
+    system: "boltoslo",
+    name: "Bolt",
+  },
+];
+```
+
+is enough.
+
+---
+
+# MVP acceptance criteria
+
+The first version is complete when I can open it on my phone in Oslo and:
+
+1. Give it my location.
+2. See currently available Voi scooters.
+3. See currently available Bolt scooters.
+4. See both providers together.
+5. See my position on a map.
+6. See scooters on that map.
+7. See scooters sorted by distance.
+8. See distance in metres.
+9. Filter between All, Voi and Bolt.
+10. Refresh the data.
+11. See when data was last refreshed.
+12. Still use the app if one provider's API fails.
+13. See remaining range when the feed provides it.
+14. Use it comfortably from a mobile screen.
+
+Anything beyond this should be considered optional until the MVP works.
+
+---
+
+# Implementation order
+
+Implement this incrementally.
+
+### Step 1
+
+Set up React + TypeScript + Vite.
+
+Get the app rendering.
+
+### Step 2
+
+Implement Entur fetching.
+
+Log normalized Voi and Bolt scooters to the console.
+
+Do not build the UI until the API response is understood.
+
+### Step 3
+
+Implement browser geolocation.
+
+### Step 4
+
+Implement distance calculation and sort vehicles by proximity.
+
+At this point render a basic textual list.
+
+Example:
+
+```text
+Bolt — 86 m
+Voi — 134 m
+Bolt — 241 m
+```
+
+Verify that the data makes sense.
+
+### Step 5
+
+Add the map.
+
+Show:
+
+```text
+user
+Voi
+Bolt
+```
+
+### Step 6
+
+Add polished mobile list + summary.
+
+### Step 7
+
+Add provider filtering.
+
+### Step 8
+
+Add automatic refresh and last-updated state.
+
+### Step 9
+
+Test on actual mobile browser around Oslo.
+
+### Step 10
+
+Add PWA functionality.
+
+### Step 11
+
+Add Home / Work saved locations if useful.
+
+---
+
+# Important development principle
+
+Do not try to build the final application immediately.
+
+Get the data flow working first:
+
+```text
+Entur
+    ↓
+normalized scooters
+    ↓
+user location
+    ↓
+distance calculation
+    ↓
+nearest scooters
+    ↓
+simple list
+```
+
+Once this works reliably, introduce the map and visual polish.
+
+The application exists to solve one very small problem extremely well:
+
+> Before I go to work, I want to immediately see where the nearest available Voi or Bolt scooter is without checking two separate apps.
+
